@@ -4,205 +4,116 @@
 #include "stdafx.h"
 #include "common.h"
 
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <math.h>
+#include <time.h>
+#include <vector>
 
-void testOpenImage() {
-    char fname[MAX_PATH];
-    while (openFileDlg(fname)) {
-        Mat src;
-        src = imread(fname);
-        imshow("opened image", src);
-        waitKey();
-    }
-}
+using namespace std;
+using namespace cv;
 
-void testOpenImagesFld() {
-    char folderName[MAX_PATH];
-    if (openFolderDlg(folderName) == 0)
-        return;
-    char fname[MAX_PATH];
-    FileGetter fg(folderName, "bmp");
-    while (fg.getNextAbsFile(fname)) {
-        Mat src;
-        src = imread(fname);
-        imshow(fg.getFoundFileName(), src);
-        if (waitKey() == 27) //ESC pressed
-            break;
-    }
-}
+void FitLineRANSAC(
+        vector<Point> points_,
+        double threshold_,
+        int maximum_iteration_number_,
+        Mat image_) {
+    srand(time(NULL));
+    int iterationNumber = 0;
 
-void testColor2Gray() {
-    char fname[MAX_PATH];
-    while (openFileDlg(fname)) {
-        Mat_<Vec3b> src = imread(fname, IMREAD_COLOR);
+    vector<int> inliers;
+    inliers.reserve(points_.size());
 
-        int height = src.rows;
-        int width = src.cols;
+    constexpr int kSampleSize = 2;
+    std::vector<int> sample(kSampleSize);
+    bool shouldDraw = image_.data != nullptr;
+    while (iterationNumber++ < maximum_iteration_number_) {
+        // 1. Select a minimal sample, i.e., in this case, 2 random points.
+        for (size_t sampleIdx = 0; sampleIdx < kSampleSize; ++sampleIdx) {
+            do {
+                sample[sampleIdx] =
+                        round((points_.size() - 1) * static_cast<double>(rand()) / static_cast<double>(RAND_MAX));
+                if (sampleIdx == 0)
+                    break;
+                if (sampleIdx == 1 &&
+                    sample[0] != sample[1])
+                    break;
+            } while (true);
+        }
+        // 2. Fit a line to the points.
+        const Point2d &p1 = points_[sample[0]]; // First point selected
+        const Point2d &p2 = points_[sample[1]]; // Second point select
+        Point2d v = p2 - p1; // Direction of the line
+        v = v / cv::norm(v); // Division by the length of the vector to make it unit length
+        Point2d n; // Normal of the line (perpendicular to the line)
+        // Rotate v by 90° to get n
+        n.x = -v.y;
+        n.y = v.x;
+        // distance(line, point) = | a * x + b * y + c | / sqrt(a * a + b * b)
+        // if ||n||_2 = 1 (unit length) then sqrt(a * a + b * b) = 1 and I don't have to do the division that is in the previous line
+        long double a = n.x;
+        long double b = n.y;
+        long double c = -(a * p1.x + b * p1.y);
 
-        Mat_<uchar> dst(height, width);
+        // 3. Count the number of inliers, i.e., the points closer than the threshold.
+        inliers.clear();
+        for (size_t pointIdx = 0; pointIdx < points_.size(); ++pointIdx) {
+            const Point2d &point = points_[pointIdx];
+            const long double distance =
+                    abs(a * point.x + b * point.y + c);
 
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                Vec3b v3 = src(i, j);
-                uchar b = v3[0];
-                uchar g = v3[1];
-                uchar r = v3[2];
-                dst(i, j) = (r + g + b) / 3;
+            if (distance < threshold_) {
+                inliers.emplace_back(pointIdx);
             }
         }
 
-        imshow("original image", src);
-        imshow("gray image", dst);
-        waitKey();
+        if (inliers.size() > 150 && shouldDraw) {
+            for (size_t pointIdx = inliers.size() - 1; pointIdx > 0; --pointIdx) {
+                points_.erase(points_.begin() + inliers[pointIdx]);
+            }
+            inliers.clear();
+            inliers.resize(0);
+            cv::line(image_,
+                     p1,
+                     p2,
+                     cv::Scalar(0, 0, 255),
+                     1);
+        }
     }
 }
 
-void scaling(Mat src, double fx, double fy) {
-    int height = src.rows;
-    int width = src.cols;
-
-    Size newSize = Size(round(fx * width), round(fy * height));
-    Mat dst = Mat::zeros(src.rows, src.cols, src.type());
-    resize(src, dst, newSize, fx, fy, INTER_CUBIC);
-
-    imshow("original image", src);
-    imshow("Scaled image", dst);
-    waitKey();
+void DrawPoints(vector<Point> &points, Mat image) {
+    for (int i = 0; i < points.size(); ++i) {
+        circle(image, points[i], 1, Scalar(255, 255, 255));
+    }
 }
-
-void translation(Mat src, float tx, float ty) {
-    int height = src.rows;
-    int width = src.cols;
-    Mat dst = Mat::zeros(src.rows, src.cols, src.type());
-
-    // matricea de translatie - matrice de 2x3
-    float vals[6] = {1, 0, tx, 0, 1, ty};
-    Mat matrix(2, 3, CV_32FC1, vals);
-
-    warpAffine(src, dst, matrix, Size(width, height));
-
-    imshow("original image", src);
-    imshow("Translated image", dst);
-    waitKey();
-}
-
-void rotation(Mat src, Point2f center, double angle, double scale) {
-    Mat dst = Mat::zeros(src.rows, src.cols, src.type());
-
-    //OpenCV provides scaled rotation with adjustable center of rotation
-    //so that we can rotate at any location you prefer.
-    Mat matrix = getRotationMatrix2D(center, angle, scale);
-
-    warpAffine(src, dst, matrix, Size(dst.cols, dst.rows));
-
-    imshow("original image", src);
-    imshow("Rotated image", dst);
-    waitKey();
-}
-
-void affineTransform(Mat src, Point2f center, double angle, double scale) {
-    Point2f srcTri[3];
-    srcTri[0] = Point2f(0.f, 0.f);
-    srcTri[1] = Point2f(src.cols - 1.f, 0.f);
-    srcTri[2] = Point2f(0.f, src.rows - 1.f);
-
-    Point2f dstTri[3];
-    dstTri[0] = Point2f(0.f, src.rows * 0.33f);
-    dstTri[1] = Point2f(src.cols * 0.85f, src.rows * 0.25f);
-    dstTri[2] = Point2f(src.cols * 0.15f, src.rows * 0.7f);
-
-    Mat warp_dst = Mat::zeros(src.rows, src.cols, src.type());
-    Mat warp_mat = getAffineTransform(srcTri, dstTri);
-    warpAffine(src, warp_dst, warp_mat, warp_dst.size());
-
-    Mat warp_rotate_dst;
-    Mat rot_mat = getRotationMatrix2D(center, angle, scale);
-    warpAffine(warp_dst, warp_rotate_dst, rot_mat, warp_dst.size());
-
-    imshow("Source image", src);
-    imshow("Warp", warp_dst);
-    imshow("Warp + Rotate", warp_rotate_dst);
-    waitKey();
-}
-
 
 int main() {
-    int op;
-    do {
-        system("cls");
-        destroyAllWindows();
-        printf("Menu:\n");
-        printf(" 1 - Basic image opening...\n");
-        printf(" 2 - Open BMP images from folder\n");
-        printf(" 3 - Color to Gray\n");
-        printf(" 4 - Scaling\n");
-        printf(" 5 - Translation\n");
-        printf(" 6 - Rotation\n");
-        printf(" 7 - Affine Transformation\n");
-        printf(" 0 - Exit\n\n");
-        printf("Option: ");
-        scanf("%d", &op);
-        switch (op) {
-            case 1:
-                testOpenImage();
-                break;
-            case 2:
-                testOpenImagesFld();
-                break;
-            case 3:
-                testColor2Gray();
-                break;
-            case 4: {
-                char fname[MAX_PATH];
-                while (openFileDlg(fname)) {
-                    Mat src;
-                    src = imread(fname);
+    Mat input = imread("ransac/canny9.jpg", 1);
 
-                    double fx = 2;
-                    double fy = 2;
-                    scaling(src, fx, fy);
-                    break;
-                }
-            }
-            case 5: {
-                char fname[MAX_PATH];
-                while (openFileDlg(fname)) {
-                    Mat src;
-                    src = imread(fname);
+//    if (input.data == nullptr) {
+//        cerr << "Failed to load image" << endl;
+//    }
+    Mat gray;
+    Mat edge_gaus;
 
-                    float tx = 100;
-                    float ty = 50;
-                    translation(src, tx, ty);
-                    break;
-                }
-            }
-            case 6: {
-                char fname[MAX_PATH];
-                while (openFileDlg(fname)) {
-                    Mat src;
-                    src = imread(fname);
+    int kernel_size = 5;
+    Mat blur_gray;
+    cvtColor(input, gray, COLOR_BGR2GRAY);
+    GaussianBlur(gray, blur_gray, Size(5, 5), 1.4);
+    Canny(blur_gray, edge_gaus, 100, 120, 3, true);
+    //imshow("Gaus", edge_gaus);
 
-                    Point2f center = Point2f((src.cols - 1) / 2.0, (src.rows - 1) / 2.0);
-                    double angle = 90;
-                    double scale = 2;
-                    rotation(src, center, angle, scale);
-                    break;
-                }
-            }
-            case 7: {
-                char fname[MAX_PATH];
-                while (openFileDlg(fname)) {
-                    Mat src;
-                    src = imread(fname);
+    Mat image = Mat::zeros(edge_gaus.rows, edge_gaus.cols, CV_8UC3);
+    vector<Point> points;
 
-                    Point2f center = Point2f((src.cols - 1) / 2.0, (src.rows - 1) / 2.0);
-                    double angle = -50;
-                    double scale = 0.6;
-                    affineTransform(src, center, angle, scale);
-                    break;
-                }
-            }
+    findNonZero(edge_gaus, points);
+    //DrawPoints(points, input);
+    FitLineRANSAC(points, 3, 100000, input);
 
-        }
-    } while (op != 0);
+    imshow("Edge detected image", edge_gaus);
+    imshow("Output", input);
+    waitKey(0);
+
     return 0;
 }

@@ -20,7 +20,7 @@ double getLength(Point a, Point b) {
 }
 
 
-float calculateSDX(vector<Point> points, vector<int> inliers) {
+float calculateSDX(vector <Point> points, vector<int> inliers) {
     float sum = 0.0, mean, SD = 0.0;
     int i;
     for (i = 0; i < inliers.size(); ++i) {
@@ -42,7 +42,7 @@ bool inside(Mat img, int x, int y) {
 
 void FitLineRANSAC(
         Mat canny,
-        vector<Point> points_,
+        vector <Point> points_,
         double threshold_,
         int maximum_iteration_number_,
         Mat image_, void *) {
@@ -155,7 +155,7 @@ void FitLineRANSAC(
 
 }
 
-vector<Point> points;
+vector <Point> points;
 Mat input;
 int lowThreshold = 0;
 int maxThreshold = 100;
@@ -165,13 +165,13 @@ int r = 3;
 //    FitLineRANSAC(points, lowThreshold * r, 100000, input, 0);
 //}
 
-void DrawPoints(vector<Point> &points, Mat image) {
+void DrawPoints(vector <Point> &points, Mat image) {
     for (int i = 0; i < points.size(); ++i) {
         circle(image, points[i], 1, Scalar(0, 255, 0));
     }
 }
 
-void f(Mat img, vector<Point> &points) {
+void f(Mat img, vector <Point> &points) {
     for (int i = 0; i < img.rows; i++) {
         for (int j = 0; j < img.cols; j++) {
             uchar pix = img.at<uchar>(i, j);
@@ -185,38 +185,52 @@ void f(Mat img, vector<Point> &points) {
 
 const std::string window = "test";
 
+Mat Canny(Mat src) {
+    Mat dst;
+    Mat gauss, small_img;
+//        int down_width = src.cols - 0.9 * src.cols;
+//        int down_height = src.rows - 0.9 * src.rows;
+//        Mat resized_down;
+    //resize down
+    //resize(src, resized_down, Size(down_width, down_height), INTER_LINEAR);
+
+    double k = 0.4;
+    int pH = 50;
+    int pL = (int) k * pH;
+    GaussianBlur(src,  // input image
+                 gauss,                    // output image
+                 Size(5, 5),                // smoothing window width and height in pixels
+                 1.4,                    // igma value, determines how much the image will be blurred
+                 1.4);
+
+    Canny(gauss, dst, 100, 3 * pL, 3);
+
+    return dst;
+
+}
+
+
 int main() {
-    input = imread("ransac/canny9.jpg", 1);
+    input = imread("ransac/canny2.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;
     }
     Mat gray;
-    Mat edge_gaus;
 
     int kernel_size = 5;
     Mat blur_gray;
     cvtColor(input, gray, COLOR_BGR2GRAY);
-    GaussianBlur(gray, blur_gray, Size(5, 5), 1.4, 1.4);
-    Canny(blur_gray, edge_gaus, 100, 120, 3);
-    //imshow("Gaus", edge_gaus);
-//
-//    Mat image = Mat::zeros(edge_gaus.rows, edge_gaus.cols, CV_8UC3);
+
+    Mat canny = Canny(gray);
 
 
-    findNonZero(edge_gaus, points);
-//    DrawPoints(points, input);
+    findNonZero(canny, points);
 
-//    cv::namedWindow(window, cv::WINDOW_AUTOSIZE);
+    FitLineRANSAC(canny, points, 1, 100000, input, 0);
 
-//    cv::createTrackbar("Threshold: ", window, &lowThreshold, maxThreshold, on_track);
-
-//    on_track(0,0);
-    FitLineRANSAC(edge_gaus, points, 1, 100000, input, 0);
-
-//
-    imshow("Edge detected image", edge_gaus);
-    imshow("Output", input);
+    imshow("Input", input);
+    imshow("Output", canny);
     moveWindow("Output", 300, 200);
     waitKey(0);
 

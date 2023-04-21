@@ -20,7 +20,7 @@ double getLength(Point a, Point b) {
 }
 
 
-float calculateSDX(vector <Point> points, vector<int> inliers) {
+float calculateSDX(vector<Point> points, vector<int> inliers) {
     float sum = 0.0, mean, SD = 0.0;
     int i;
     for (i = 0; i < inliers.size(); ++i) {
@@ -42,7 +42,7 @@ bool inside(Mat img, int x, int y) {
 
 void FitLineRANSAC(
         Mat canny,
-        vector <Point> points_,
+        vector<Point> points_,
         double threshold_,
         int maximum_iteration_number_,
         Mat image_, void *) {
@@ -138,6 +138,7 @@ void FitLineRANSAC(
                 //x = a+by
                 pmax = Point(a1, 0);
                 pmin = Point(a1 + b1 * image_.rows, image_.rows);
+
             } else {
                 //y = a+bx
                 pmax = Point(0, a1);
@@ -155,18 +156,18 @@ void FitLineRANSAC(
 
 }
 
-vector <Point> points;
+vector<Point> points;
 Mat input;
 int r = 3;
 
 
-void DrawPoints(vector <Point> &points, Mat image) {
+void DrawPoints(vector<Point> &points, Mat image) {
     for (int i = 0; i < points.size(); ++i) {
         circle(image, points[i], 1, Scalar(0, 255, 0));
     }
 }
 
-void f(Mat img, vector <Point> &points) {
+void f(Mat img, vector<Point> &points) {
     for (int i = 0; i < img.rows; i++) {
         for (int j = 0; j < img.cols; j++) {
             uchar pix = img.at<uchar>(i, j);
@@ -206,7 +207,7 @@ Mat Canny(Mat src) {
 
 
 int main() {
-    input = imread("ransac/canny5.jpg", 1);
+    input = imread("ransac/cannyR.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;

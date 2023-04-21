@@ -20,19 +20,6 @@ double getLength(Point a, Point b) {
 }
 
 
-float calculateSDX(vector<Point> points, vector<int> inliers) {
-    float sum = 0.0, mean, SD = 0.0;
-    int i;
-    for (i = 0; i < inliers.size(); ++i) {
-        sum += points[inliers[i]].x;
-    }
-    mean = sum / inliers.size();
-    for (i = 0; i < inliers.size(); ++i) {
-        SD += pow(points[inliers[i]].x - mean, 2);
-    }
-    return sqrt(SD / inliers.size());
-}
-
 bool inside(Mat img, int x, int y) {
     if (x >= 0 && x < img.rows && y >= 0 && y < img.cols)
         return true;
@@ -50,6 +37,7 @@ void FitLineRANSAC(
     int iterationNumber = 0;
 
     vector<int> inliers;
+    vector<pair<Point, Point>> lines;
     inliers.reserve(points_.size());
 
     constexpr int kSampleSize = 2;
@@ -101,65 +89,160 @@ void FitLineRANSAC(
         }
 
 
-        float sumX = 0, sumX2 = 0, sumY = 0, sumXY = 0, a1, b1;
-        int len = inliers.size();
-
         if (inliers.size() > 100 && shouldDraw) {
-            float standardDeviation = calculateSDX(points_, inliers);
-//            std::cout<<standardDeviation<<std::endl;
+            lines.push_back(make_pair(p1, p2));
             for (size_t pointIdx = inliers.size() - 1; pointIdx > 0; --pointIdx) {
-
-                if (std::round(standardDeviation) == 0) {
-
-                    sumX = sumX + points_[inliers[pointIdx]].y;
-                    sumX2 = sumX2 + points_[inliers[pointIdx]].y * points_[inliers[pointIdx]].y;
-                    sumY = sumY + points_[inliers[pointIdx]].x;
-                    sumXY = sumXY + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].y;
-
-                } else {
-                    sumX = sumX + points_[inliers[pointIdx]].x;
-                    sumX2 = sumX2 + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].x;
-                    sumY = sumY + points_[inliers[pointIdx]].y;
-                    sumXY = sumXY + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].y;
-                }
-
                 points_.erase(points_.begin() + inliers[pointIdx]);
             }
             inliers.clear();
             inliers.resize(0);
 
 
-            b1 = (len * sumXY - sumX * sumY) / ((len * sumX2 - sumX * sumX) * 1.0);
-            a1 = (sumY - b1 * sumX) / (len * 1.0);
-
-            Point pmax;
-            Point pmin;
-            if (std::round(standardDeviation) == 0) {
-                //x = a+by
-                pmax = Point(a1, 0);
-                pmin = Point(a1 + b1 * image_.rows, image_.rows);
-
-            } else {
-                //y = a+bx
-                pmax = Point(0, a1);
-                pmin = Point(image_.rows, a1 + b1 * image_.rows);
-            }
-
-            cv::line(image_,
-                     pmin,
-                     pmax,
-                     cv::Scalar(255, 0, 0),
-                     1);
+//            cv::line(image_,
+//                     p1,
+//                     p2,
+//                     cv::Scalar(255, 0, 0),
+//                     3);
         }
     }
 
+    for (int i = 0; i < lines.size(); i++) {
+        float slope =  (lines[i].first.y - lines[i].second.y) / (1.0 * (lines[i].first.x - lines[i].second.x));
+        Point2d v = lines[i].second - lines[i].first; // Direction of the line
+        v = v / cv::norm(v); // Division by the length of the vector to make it unit length
+        Point2d n; // Normal of the line (perpendicular to the line)
+        // Rotate v by 90° to get n
+        n.x = -v.y;
+        n.y = v.x;
+        // distance(line, point) = | a * x + b * y + c | / sqrt(a * a + b * b)
+        // if ||n||_2 = 1 (unit length) then sqrt(a * a + b * b) = 1 and I don't have to do the division that is in the previous line
+        long double a = n.x;
+        long double b = n.y;
+        long double c = -(a * lines[i].first.x + b * lines[i].first.y);
+
+        int xmax = max(lines[i].first.x, lines[i].second.x);
+        int xmin = min(lines[i].first.x, lines[i].second.x);
+        int ymin = min(lines[i].first.y, lines[i].second.y);
+        int ymax = max(lines[i].first.y, lines[i].second.y);
+
+        Point minPoint = lines[i].first;
+        Point maxPoint = lines[i].second;
+
+        int dx[] = {0, 0, -1, 1, 0, 0, 0, -2, 2, 0, 0, -3, 3};
+        int dy[] = {1, -1, 0, 0, 0, 2, -2, 0, 0, 3, -3, 0, 0};
+
+
+        if (lines[i].first.x - lines[i].second.x == 0) {
+            while (true) {
+
+                ymax++;
+                Point newPoint = Point(lines[i].first.x, ymax);
+                int ok = 0;
+                for (int k = 0; k < 9; k++) {
+                    int y = newPoint.x + dx[k];
+                    int x = newPoint.y + dy[k];
+                    if (!inside(image_, x,y)) {
+                        break;
+                    } else {
+                        if (canny.at<uchar>(x, y) > 128) {
+                            ok = 1;
+                            break;
+                        }
+                    }
+                }
+
+                if (ok == 0)
+                    break;
+
+
+                maxPoint = newPoint;
+            }
+
+            while (true) {
+                ymin--;
+                int ok = 0;
+                Point newPoint = Point(lines[i].first.x, ymin);
+                for (int k = 0; k < 9; k++) {
+                    int y = newPoint.x + dx[k];
+                    int x = newPoint.y + dy[k];
+                    if (!inside(image_, x,y)) {
+                        break;
+                    } else {
+                        if (canny.at<uchar>(x, y) > 128) {
+                            ok = 1;
+                            break;
+                        }
+                    }
+                }
+
+                if (ok == 0)
+                    break;
+                minPoint = newPoint;
+            }
+
+        } else {
+            while (true) {
+                xmax++;
+                Point newPoint = Point(xmax, slope * xmax + c);
+                int ok = 0;
+                for (int k = 0; k < 9; k++) {
+                    int y = newPoint.x + dx[k];
+                    int x = newPoint.y + dy[k];
+                    if (!inside(image_, x,y)) {
+                        break;
+                    } else {
+                        if (canny.at<uchar>(x, y) > 128) {
+                            ok = 1;
+                            break;
+                        }
+                    }
+                }
+
+                if (ok == 0)
+                    break;
+                maxPoint = newPoint;
+            }
+
+            while (true) {
+                xmin--;
+                Point newPoint = Point(xmin, slope * xmin + c);
+                int ok = 0;
+                for (int k = 0; k < 9; k++) {
+                    int y = newPoint.x + dx[k];
+                    int x = newPoint.y + dy[k];
+                    if (!inside(image_, x,y)) {
+                        break;
+                    } else {
+                        if (canny.at<uchar>(x, y) > 128) {
+                            ok = 1;
+                            break;
+                        }
+                    }
+                }
+
+                if (ok == 0)
+                    break;
+                minPoint = newPoint;
+            }
+        }
+        cv::line(image_,
+                 minPoint,
+                 maxPoint,
+                 cv::Scalar(0, 0, 255),
+                 2);
+    }
 
 }
 
 vector<Point> points;
 Mat input;
+int lowThreshold = 0;
+int maxThreshold = 100;
 int r = 3;
 
+//static void on_track(int, void *) {
+//    FitLineRANSAC(points, lowThreshold * r, 100000, input, 0);
+//}
 
 void DrawPoints(vector<Point> &points, Mat image) {
     for (int i = 0; i < points.size(); ++i) {
@@ -193,10 +276,10 @@ Mat Canny(Mat src) {
     double k = 0.4;
     int pH = 50;
     int pL = (int) k * pH;
-    GaussianBlur(src,  // input image
-                 gauss,                    // output image
-                 Size(5, 5),                // smoothing window width and height in pixels
-                 1.4,                    // igma value, determines how much the image will be blurred
+    GaussianBlur(src,
+                 gauss,
+                 Size(5, 5),
+                 1.4,
                  1.4);
 
     Canny(gauss, dst, 100, 53, 3);
@@ -207,7 +290,7 @@ Mat Canny(Mat src) {
 
 
 int main() {
-    input = imread("ransac/cannyR.jpg", 1);
+    input = imread("ransac/canny6.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;

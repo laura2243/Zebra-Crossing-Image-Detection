@@ -20,6 +20,19 @@ double getLength(Point a, Point b) {
 }
 
 
+float calculateSDX(vector<Point> points, vector<int> inliers) {
+    float sum = 0.0, mean, SD = 0.0;
+    int i;
+    for (i = 0; i < inliers.size(); ++i) {
+        sum += points[inliers[i]].x;
+    }
+    mean = sum / inliers.size();
+    for (i = 0; i < inliers.size(); ++i) {
+        SD += pow(points[inliers[i]].x - mean, 2);
+    }
+    return sqrt(SD / inliers.size());
+}
+
 bool inside(Mat img, int x, int y) {
     if (x >= 0 && x < img.rows && y >= 0 && y < img.cols)
         return true;
@@ -92,37 +105,50 @@ void FitLineRANSAC(
         int len = inliers.size();
 
         if (inliers.size() > 100 && shouldDraw) {
+            float standardDeviation = calculateSDX(points_, inliers);
+
             for (size_t pointIdx = inliers.size() - 1; pointIdx > 0; --pointIdx) {
 
-                sumX = sumX + points_[inliers[pointIdx]].x;
-                sumX2 = sumX2 + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].x;
-                sumY = sumY + points_[inliers[pointIdx]].y;
-                sumXY = sumXY + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].y;
+                if (standardDeviation == 0) {
+
+                    sumX = sumX + points_[inliers[pointIdx]].y;
+                    sumX2 = sumX2 + points_[inliers[pointIdx]].y * points_[inliers[pointIdx]].y;
+                    sumY = sumY + points_[inliers[pointIdx]].x;
+                    sumXY = sumXY + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].y;
+
+                } else {
+                    sumX = sumX + points_[inliers[pointIdx]].x;
+                    sumX2 = sumX2 + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].x;
+                    sumY = sumY + points_[inliers[pointIdx]].y;
+                    sumXY = sumXY + points_[inliers[pointIdx]].x * points_[inliers[pointIdx]].y;
+                }
 
                 points_.erase(points_.begin() + inliers[pointIdx]);
             }
             inliers.clear();
             inliers.resize(0);
 
-            //y = a+bx
+
             b1 = (len * sumXY - sumX * sumY) / ((len * sumX2 - sumX * sumX) * 1.0);
             a1 = (sumY - b1 * sumX) / (len * 1.0);
 
-
-            Point pmax = Point(0, -1.0 * a1 / b1);
-            Point pmin = Point(a1 + b1 * image_.cols, image_.cols);
-
-
-
-            std::cout << pmax.y << endl;
-            //x = (y-a)/b
-//            pmax = Point (-a1/b1,0);
+            Point pmax;
+            Point pmin;
+            if (standardDeviation == 0) {
+                //x = a+by
+                pmax = Point(a1, 0);
+                pmin = Point(a1 + b1 * image_.rows, image_.rows);
+            } else {
+                //y = a+bx
+                pmax = Point(0, a1);
+                pmin = Point(image_.rows, a1 + b1 * image_.rows);
+            }
 
             cv::line(image_,
                      pmin,
                      pmax,
                      cv::Scalar(255, 0, 0),
-                     3);
+                     2);
         }
     }
 
@@ -160,7 +186,7 @@ void f(Mat img, vector<Point> &points) {
 const std::string window = "test";
 
 int main() {
-    input = imread("ransac/cannyR.jpg", 1);
+    input = imread("ransac/canny9.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;

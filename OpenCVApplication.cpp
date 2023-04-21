@@ -106,10 +106,10 @@ void FitLineRANSAC(
 
         if (inliers.size() > 100 && shouldDraw) {
             float standardDeviation = calculateSDX(points_, inliers);
-
+//            std::cout<<standardDeviation<<std::endl;
             for (size_t pointIdx = inliers.size() - 1; pointIdx > 0; --pointIdx) {
 
-                if (standardDeviation == 0) {
+                if (std::round(standardDeviation) == 0) {
 
                     sumX = sumX + points_[inliers[pointIdx]].y;
                     sumX2 = sumX2 + points_[inliers[pointIdx]].y * points_[inliers[pointIdx]].y;
@@ -134,7 +134,7 @@ void FitLineRANSAC(
 
             Point pmax;
             Point pmin;
-            if (standardDeviation == 0) {
+            if (std::round(standardDeviation) == 0) {
                 //x = a+by
                 pmax = Point(a1, 0);
                 pmin = Point(a1 + b1 * image_.rows, image_.rows);
@@ -148,7 +148,7 @@ void FitLineRANSAC(
                      pmin,
                      pmax,
                      cv::Scalar(255, 0, 0),
-                     2);
+                     1);
         }
     }
 
@@ -157,13 +157,8 @@ void FitLineRANSAC(
 
 vector <Point> points;
 Mat input;
-int lowThreshold = 0;
-int maxThreshold = 100;
 int r = 3;
 
-//static void on_track(int, void *) {
-//    FitLineRANSAC(points, lowThreshold * r, 100000, input, 0);
-//}
 
 void DrawPoints(vector <Point> &points, Mat image) {
     for (int i = 0; i < points.size(); ++i) {
@@ -203,7 +198,7 @@ Mat Canny(Mat src) {
                  1.4,                    // igma value, determines how much the image will be blurred
                  1.4);
 
-    Canny(gauss, dst, 100, 3 * pL, 3);
+    Canny(gauss, dst, 100, 53, 3);
 
     return dst;
 
@@ -211,14 +206,13 @@ Mat Canny(Mat src) {
 
 
 int main() {
-    input = imread("ransac/canny2.jpg", 1);
+    input = imread("ransac/canny5.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;
     }
     Mat gray;
 
-    int kernel_size = 5;
     Mat blur_gray;
     cvtColor(input, gray, COLOR_BGR2GRAY);
 

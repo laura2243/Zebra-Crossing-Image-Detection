@@ -47,7 +47,7 @@ Mat Canny(Mat src) {
 
 int main() {
     Mat input;
-    input = imread("ransac/canny5.jpg", 1);
+    input = imread("ransac/canny6.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;

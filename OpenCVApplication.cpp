@@ -149,7 +149,7 @@ void FitLineRANSAC(
                      pmin,
                      pmax,
                      cv::Scalar(255, 0, 0),
-                     1);
+                     2);
         }
     }
 
@@ -207,7 +207,7 @@ Mat Canny(Mat src) {
 
 
 int main() {
-    input = imread("ransac/cannyR.jpg", 1);
+    input = imread("ransac/canny6.jpg", 1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;

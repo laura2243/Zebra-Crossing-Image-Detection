@@ -44,6 +44,21 @@ Mat Canny(Mat src) {
 
 }
 
+bool intersection(Point2f o1, Point2f p1, Point2f o2, Point2f p2,
+                  Point2f &r) {
+    Point2f x = o2 - o1;
+    Point2f d1 = p1 - o1;
+    Point2f d2 = p2 - o2;
+
+    float cross = d1.x * d2.y - d1.y * d2.x;
+    if (abs(cross) < 1e-8)
+        return false;
+
+    double t1 = (x.x * d2.y - x.y * d2.x) / cross;
+    r = o1 + d1 * t1;
+    return true;
+}
+
 
 int main() {
     Mat input;
@@ -68,60 +83,94 @@ int main() {
     HoughLinesP(canny, linesP, 0.5, CV_PI / 180, 40, 50, 20); // runs the actual detection
     HoughLinesP(cannyIdeal, linesIdeal, 0.5, CV_PI / 180, 40, 50, 20);
     // Draw the lines
-    for (size_t i = 0; i < linesP.size(); i++) {
-        Vec4i l = linesP[i];
+//    for (size_t i = 0; i < linesP.size(); i++) {
+//        Vec4i l = linesP[i];
+//        line(input, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 0, 255), 2);
+//    }
+
+
+    vector<Point2f> intersections;
+    vector<Vec4i> linesAfterIntersection;
+    for (size_t i = 0; i < linesP.size() - 1; i++) {
+        Vec4i li = linesP[i];
+        for (size_t j = i + 1; j < linesP.size(); j++) {
+            Vec4i lj = linesP[j];
+
+
+            Point2f inter;
+            if (intersection(Point(li[0], li[1]), Point(li[2], li[3]), Point(lj[0], lj[1]), Point(lj[2], lj[3]),
+                             inter)) {
+                intersections.push_back(inter);
+
+                if (inter.x > 1700 && inter.x < 2200) {
+
+                    linesAfterIntersection.push_back(li);
+                    linesAfterIntersection.push_back(lj);
+                }
+
+            }
+
+        }
+    }
+
+    Point2f minx, maxx, miny, maxy = Point2f(linesAfterIntersection[0][0], linesAfterIntersection[0][1]);
+
+    for (int i = 0; i < linesAfterIntersection.size(); i++) {
+        if (linesAfterIntersection[i][0] < minx.x) {
+            minx = Point2f(linesAfterIntersection[i][0], linesAfterIntersection[i][1]);
+        }
+        if (linesAfterIntersection[i][1] < miny.y) {
+            miny = Point2f(linesAfterIntersection[i][0], linesAfterIntersection[i][1]);
+        }
+        if (linesAfterIntersection[i][1] > maxy.y) {
+            maxy = Point2f(linesAfterIntersection[i][0], linesAfterIntersection[i][1]);
+        }
+        if (linesAfterIntersection[i][0] > maxx.x) {
+            maxx = Point2f(linesAfterIntersection[i][0], linesAfterIntersection[i][1]);
+        }
+
+        if (linesAfterIntersection[i][2] < minx.x) {
+            minx = Point2f(linesAfterIntersection[i][2], linesAfterIntersection[i][3]);
+        }
+        if (linesAfterIntersection[i][3] < miny.y) {
+            miny = Point2f(linesAfterIntersection[i][2], linesAfterIntersection[i][3]);
+        }
+        if (linesAfterIntersection[i][1] > maxy.y) {
+            maxy = Point2f(linesAfterIntersection[i][2], linesAfterIntersection[i][3]);
+        }
+        if (linesAfterIntersection[i][2] > maxx.x) {
+            maxx = Point2f(linesAfterIntersection[i][2], linesAfterIntersection[i][3]);
+        }
+    }
+
+
+    vector<Point> contur;
+    contur.push_back(minx);
+    contur.push_back(miny);
+    contur.push_back(maxx);
+    contur.push_back(maxy);
+
+
+//    Mat imgRectangle=zeros;
+
+    line(input, minx, miny, Scalar(255, 0, 0), 2);
+    line(input, maxx, miny, Scalar(255, 0, 0), 2);
+    line(input, minx, maxy, Scalar(255, 0, 0), 2);
+    line(input, maxx, maxy, Scalar(255, 0, 0), 2);
+
+//    imshow("imgFinal", imgRectangle);
+
+    for (size_t i = 0; i < linesAfterIntersection.size(); i++) {
+        Vec4i l = linesAfterIntersection[i];
         line(input, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 0, 255), 2);
     }
 
-    for (size_t i = 0; i < linesIdeal.size(); i++) {
-        Vec4i l = linesIdeal[i];
-        std::cout << "Point1: ";
-        std::cout << l[0] << " " << l[1] << std::endl;
-        std::cout << "Point2: ";
-        std::cout << l[2] << " " << l[3] << std::endl;
+    for (size_t i = 0; i < intersections.size(); i++) {
+        Point p = intersections[i];
+        std::cout << "Point: ";
+        std::cout << p.x << " " << p.y << std::endl;
     }
 
-    std::cout << "Imagine urata" << endl << endl;
-    for (size_t i = 0; i < linesP.size(); i++) {
-        Vec4i l = linesP[i];
-        std::cout << "Point1: ";
-        std::cout << l[0] << " " << l[1] << std::endl;
-        std::cout << "Point2: ";
-        std::cout << l[2] << " " << l[3] << std::endl;
-    }
-
-
-    Point2f srcTri[4];
-//    srcTri[0] = Point2f(0.f, 0.f);
-//    srcTri[1] = Point2f(input.cols - 1.f, 0.f);
-//    srcTri[2] = Point2f(0.f, input.rows - 1.f);
-//
-//    Point2f dstTri[3];
-//    dstTri[0] = Point2f(0.f, input.rows * 0.33f);
-//    dstTri[1] = Point2f(input.cols * 0.85f, input.rows * 0.25f);
-//    dstTri[2] = Point2f(input.cols * 0.15f, input.rows * 0.7f);
-
-    srcTri[0] = Point2f(29,35);
-    srcTri[1] = Point2f(29,229);
-    srcTri[2] = Point2f(65,32);
-    srcTri[3] = Point2f(243,218);
-
-    Point2f dstTri[4];
-    dstTri[0] = Point2f(46,230);
-    dstTri[1] = Point2f(228,220);
-    dstTri[2] = Point2f(46,167);
-    dstTri[3] = Point2f(input.cols,input.rows);
-
-//    Mat warp_dst = Mat::zeros(input.rows, input.cols, input.type());
-//    Mat warp_mat = getPerspectiveTransform(srcTri, dstTri);
-//    warpPerspective(input, warp_dst, warp_mat, warp_dst.size());
-
-    Mat warp_dst2 = Mat::zeros(idealPhoto.rows, idealPhoto.cols, input.type());
-    Mat warp_mat2 = getAffineTransform(srcTri, dstTri);
-    warpAffine(idealPhoto, warp_dst2, warp_mat2, warp_dst2.size());
-
-//    imshow("Warp", warp_dst);
-    imshow("Warp affine", warp_dst2);
 
     imshow("Input", input);
     imshow("Output", canny);

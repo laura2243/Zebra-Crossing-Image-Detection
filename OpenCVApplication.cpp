@@ -48,46 +48,7 @@ Mat Canny(Mat src) {
 }
 
 
-int main() {
-    Mat input;
-    Mat idealPhoto;
-    input = imread("ransac/canny6.jpg", 1);
-    idealPhoto = imread("ransac/cannyR.jpg", 1);
-
-    Mat output= Mat::zeros(input.rows,input.cols,CV_8UC1);
-    Mat outputIdeal= Mat::zeros(idealPhoto.rows,idealPhoto.cols,CV_8UC1);
-
-    if (input.data == nullptr) {
-        cerr << "Failed to load image" << endl;
-    }
-    Mat gray;
-    Mat grayIdeal;
-
-    cvtColor(input, gray, COLOR_BGR2GRAY);
-    cvtColor(idealPhoto, grayIdeal, COLOR_BGR2GRAY);
-
-    Mat canny = Canny(gray);
-    Mat cannyIdeal = Canny(grayIdeal);
-
-    vector<Vec4i> linesP; // will hold the results of the detection
-    vector<Vec4i> linesIdeal;
-    HoughLinesP(canny, linesP, 0.5, CV_PI / 180, 40, 50, 20); // runs the actual detection
-    HoughLinesP(cannyIdeal, linesIdeal, 0.5, CV_PI / 180, 40, 50, 20);
-    // Draw the lines
-    for (size_t i = 0; i < linesP.size(); i++) {
-        Vec4i l = linesP[i];
-        line(output, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 2);
-    }
-
-    for (size_t i = 0; i < linesIdeal.size(); i++) {
-        Vec4i l = linesIdeal[i];
-        line(outputIdeal, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 2);
-    }
-
-
-//    Mat img_src = imread("ransac/canny6.jpg", 1);
-//    Mat img_tgt = imread("ransac/cannyR.jpg", 1);
-
+void matche(Mat gray, Mat grayIdeal) {
     // Create a SIFT object
     Ptr<SIFT> sift = SIFT::create();
 
@@ -103,8 +64,8 @@ int main() {
     // Match the keypoints between the two images
 
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-    std::vector< std::vector<DMatch> > matches;
-    matcher->knnMatch( descriptors_src, descriptors_tgt, matches, 2 );
+    std::vector<std::vector<DMatch> > matches;
+    matcher->knnMatch(descriptors_src, descriptors_tgt, matches, 2);
 
 //    vector<vector<DMatch>> matches;
 //    bf.knnMatch(descriptors_src, descriptors_tgt, matches, 2);
@@ -119,7 +80,8 @@ int main() {
 
     // Draw the matched keypoints
     Mat img_matches;
-    drawMatches(gray, keypoints_src, grayIdeal, keypoints_tgt, good_matches, img_matches, Scalar::all(-1), Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+    drawMatches(gray, keypoints_src, grayIdeal, keypoints_tgt, good_matches, img_matches, Scalar::all(-1),
+                Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
     // Set RANSAC parameters
     double ransac_reproj_threshold = 4.0;
@@ -139,7 +101,8 @@ int main() {
 
     // Draw the inlier matches
     Mat img_inliers;
-    drawMatches(gray, keypoints_src, grayIdeal, keypoints_tgt, good_matches, img_inliers, Scalar::all(-1), Scalar::all(-1), inliers, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+    drawMatches(gray, keypoints_src, grayIdeal, keypoints_tgt, good_matches, img_inliers, Scalar::all(-1),
+                Scalar::all(-1), inliers, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
     // Warp the source image using the homography
     Mat img_warped;
@@ -163,57 +126,220 @@ int main() {
     imshow("Matches", img_matches);
     imshow("Inliers", img_inliers);
     imshow("Projected Image", img_result);
+}
 
 
-//    for (size_t i = 0; i < linesIdeal.size(); i++) {
-//        Vec4i l = linesIdeal[i];
-//        std::cout << "Point1: ";
-//        std::cout << l[0] << " " << l[1] << std::endl;
-//        std::cout << "Point2: ";
-//        std::cout << l[2] << " " << l[3] << std::endl;
-//    }
-//
-//    std::cout << "Imagine urata" << endl << endl;
-//    for (size_t i = 0; i < linesP.size(); i++) {
-//        Vec4i l = linesP[i];
-//        std::cout << "Point1: ";
-//        std::cout << l[0] << " " << l[1] << std::endl;
-//        std::cout << "Point2: ";
-//        std::cout << l[2] << " " << l[3] << std::endl;
-//    }
+float rmse(Mat src, Mat dst) {
+
+    int square = 0;
+    float mean = 0.0;
+
+    for (int i = 0; i < src.rows; i++) {
+        for (int j = 0; j < src.cols; j++) {
+            square += pow((src.at<uchar>(i, j) - dst.at<uchar>(i, j)), 2);
+        }
+    }
+
+    mean = square / (src.rows * src.cols);
+    return sqrt(mean);
+}
+
+
+int main() {
+    Mat input;
+    Mat idealPhoto;
+    input = imread("ransac/canny6.jpg", 1);
+    idealPhoto = imread("ransac/cannyR2.jpg", 1);
+
+    Mat output = Mat::zeros(input.rows, input.cols, CV_8UC1);
+    Mat outputIdeal = Mat::zeros(idealPhoto.rows, idealPhoto.cols, CV_8UC1);
+
+    if (input.data == nullptr) {
+        cerr << "Failed to load image" << endl;
+    }
+    Mat gray;
+    Mat grayIdeal;
+
+    cvtColor(input, gray, COLOR_BGR2GRAY);
+    cvtColor(idealPhoto, grayIdeal, COLOR_BGR2GRAY);
+
+    Mat canny = Canny(gray);
+    Mat cannyIdeal = Canny(grayIdeal);
+
+    vector<Vec4i> linesP; // will hold the results of the detection
+    vector<Vec4i> linesIdeal;
+    HoughLinesP(canny, linesP, 0.5, CV_PI / 180, 40, 50, 20); // runs the actual detection
+    HoughLinesP(cannyIdeal, linesIdeal, 0.5, CV_PI / 180, 40, 50, 20);
+
+
+    // crescator dupa y
+    std::sort(linesP.begin(), linesP.end(),
+              [](const cv::Vec4i &a, const cv::Vec4i &b) {
+                  return a[1] > b[1];
+              });
+
+
+    //crescator dupa x
+    std::sort(linesIdeal.begin(), linesIdeal.end(),
+              [](const cv::Vec4i &a, const cv::Vec4i &b) {
+                  return a[0] < b[0];
+              });
+
+    // Draw the lines
+    for (size_t i = 0; i < linesP.size(); i++) {
+        Vec4i l = linesP[i];
+        line(output, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 2);
+    }
+
+    for (size_t i = 0; i < linesIdeal.size(); i++) {
+        Vec4i l = linesIdeal[i];
+        line(outputIdeal, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 2);
+    }
+
+//    matche(gray,grayIdeal);
+
+
+
+    for (size_t i = 0; i < linesIdeal.size(); i++) {
+        Vec4i l = linesIdeal[i];
+        std::cout << "Point1: ";
+        std::cout << l[0] << " " << l[1] << std::endl;
+        std::cout << "Point2: ";
+        std::cout << l[2] << " " << l[3] << std::endl;
+    }
+
+    std::cout << endl << "Imagine urata" << endl << endl;
+    for (size_t i = 0; i < linesP.size(); i++) {
+        Vec4i l = linesP[i];
+        std::cout << "Point1: ";
+        std::cout << l[0] << " " << l[1] << std::endl;
+        std::cout << "Point2: ";
+        std::cout << l[2] << " " << l[3] << std::endl;
+    }
+
+    int minx = linesP[0][0];
+    int maxx = linesP[0][0];
+    int miny = linesP[0][1];
+    int maxy = linesP[0][1];
+
+    for (int i = 0; i < linesP.size(); i++) {
+        for (int j = 0; j < 4; j++) {
+            if (j % 2 == 0) { //x
+                if (linesP[i][j] < minx) {
+                    minx = linesP[i][j];
+                }
+                if (linesP[i][j] > maxx) {
+                    maxx = linesP[i][j];
+                }
+            } else {
+                if (linesP[i][j] < miny) {
+                    miny = linesP[i][j];
+                }
+                if (linesP[i][j] > maxy) {
+                    maxy = linesP[i][j];
+                }
+            }
+        }
+    }
+
+
+    int minxI = linesIdeal[0][0];
+    int maxxI = linesIdeal[0][0];
+    int minyI = linesIdeal[0][1];
+    int maxyI = linesIdeal[0][1];
+
+    for (int i = 0; i < linesIdeal.size(); i++) {
+        for (int j = 0; j < 4; j++) {
+            if (j % 2 == 0) { //x
+                if (linesIdeal[i][j] < minxI) {
+                    minxI = linesIdeal[i][j];
+                }
+                if (linesIdeal[i][j] > maxxI) {
+                    maxxI = linesIdeal[i][j];
+                }
+            } else {
+                if (linesIdeal[i][j] < minyI) {
+                    minyI = linesIdeal[i][j];
+                }
+                if (linesIdeal[i][j] > maxyI) {
+                    maxyI = linesIdeal[i][j];
+                }
+            }
+        }
+    }
 
 
 //    Point2f srcTri[4];
-//    srcTri[0] = Point2f(0.f, 0.f);
-//    srcTri[1] = Point2f(input.cols - 1.f, 0.f);
-//    srcTri[2] = Point2f(0.f, input.rows - 1.f);
+//    srcTri[0] = Point(maxx, miny);
+//    srcTri[1] = Point(minx, miny);
+//    srcTri[2] = Point(maxx, maxy);
+//    srcTri[3] = Point(minx, maxy);
+
+//    srcTri[0] = Point(220, 13);
+//    srcTri[1] = Point(58, 2);
+//    srcTri[2] = Point(243, 220);
+//    srcTri[3] = Point(46, 230);
+
+
+    Point2f dstTri[4];
+    int minn = min(linesP.size(), linesIdeal.size());
+    dstTri[0] = Point(linesIdeal[0][0], linesIdeal[0][1]);
+    dstTri[1] = Point(linesIdeal[0][2], linesIdeal[0][3]);
+    dstTri[2] = Point(linesIdeal[minn - 1][0], linesIdeal[minn - 1][1]);
+    dstTri[3] = Point(linesIdeal[minn - 1][2], linesIdeal[minn - 1][3]);
+
+    Mat imgFinal;
+    float minRMSE = FLT_MAX;
+    int mini = -1;
+    int minj = -1;
+//    for (int i = 0; i < linesP.size() - 1; i++) {
+//        srcTri[0] = Point(linesP[i][0], linesP[i][1]);
+//        srcTri[2] = Point(linesP[i][2], linesP[i][3]);
+//        if(srcTri[0].x ==220 && srcTri[0].y ==13 && srcTri[1].x == 58 && srcTri[1].y ==2 ){
+//            mini = i;
 //
-//    Point2f dstTri[3];
-//    dstTri[0] = Point2f(0.f, input.rows * 0.33f);
-//    dstTri[1] = Point2f(input.cols * 0.85f, input.rows * 0.25f);
-//    dstTri[2] = Point2f(input.cols * 0.15f, input.rows * 0.7f);
-
-//    srcTri[0] = Point2f(29,35);
-//    srcTri[1] = Point2f(29,229);
-//    srcTri[2] = Point2f(65,32);
-//    srcTri[3] = Point2f(243,218);
+//        }
+//        for (int j = i + 1; j < linesP.size(); j++) {
+//            srcTri[3] = Point(linesP[j][0], linesP[j][1]);
+//            srcTri[1] = Point(linesP[j][2], linesP[j][3]);
 //
-//    Point2f dstTri[4];
-//    dstTri[0] = Point2f(46,230);
-//    dstTri[1] = Point2f(228,220);
-//    dstTri[2] = Point2f(46,167);
-//    dstTri[3] = Point2f(input.cols,input.rows);
+//            if(srcTri[3].x ==243 && srcTri[3].y ==220 && srcTri[2].x == 46 && srcTri[2].y ==230 ){
+//                minj = j;
+//
+//            }
 
-//    Mat warp_dst = Mat::zeros(input.rows, input.cols, input.type());
-//    Mat warp_mat = getPerspectiveTransform(srcTri, dstTri);
-//    warpPerspective(input, warp_dst, warp_mat, warp_dst.size());
+    Point2f srcTri[4];
+    srcTri[0] = Point(linesP[0][0], linesP[0][1]);
+    srcTri[1] = Point(linesP[0][2], linesP[0][3]);
+    srcTri[2] = Point(linesP[linesP.size() - 1][0], linesP[linesP.size() - 1][1]);
+    srcTri[3] = Point(linesP[linesP.size() - 1][2], linesP[linesP.size() - 1][3]);
 
-//    Mat warp_dst2 = Mat::zeros(idealPhoto.rows, idealPhoto.cols, input.type());
-//    Mat warp_mat2 = getAffineTransform(srcTri, dstTri);
-//    warpAffine(idealPhoto, warp_dst2, warp_mat2, warp_dst2.size());
+    Mat warp_dst2 = Mat::zeros(input.rows, input.cols, input.type());
+    Mat warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
+    warpPerspective(outputIdeal, warp_dst2, warp_mat2, warp_dst2.size());
 
-//    imshow("Warp", warp_dst);
-//    imshow("Warp affine", warp_dst2);
+//    float score = rmse(output, warp_dst2);
+//
+//    char name[50];
+//    ::sprintf(name, "%s %d %d %f", "img", i, j, score);
+//            imshow(name, warp_dst2);
+
+//            if ( score<minRMSE) {
+//                minRMSE = score;
+//                imgFinal = warp_dst2;
+//
+//            }
+
+
+//        }
+//    }
+
+    char name[50];
+//    ::sprintf(name, "%s %f %d %d", "final", minRMSE, mini, minj);
+    imshow("final", warp_dst2);
+
+//    cout << endl << "aici " << mini << " " << minj << endl;
+
 
     imshow("Input", input);
     imshow("out", output);

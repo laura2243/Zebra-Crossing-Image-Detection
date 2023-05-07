@@ -269,77 +269,47 @@ int main() {
     }
 
 
-//    Point2f srcTri[4];
+    Point2f srcTri[4];
 //    srcTri[0] = Point(maxx, miny);
 //    srcTri[1] = Point(minx, miny);
 //    srcTri[2] = Point(maxx, maxy);
 //    srcTri[3] = Point(minx, maxy);
 
-//    srcTri[0] = Point(220, 13);
-//    srcTri[1] = Point(58, 2);
-//    srcTri[2] = Point(243, 220);
-//    srcTri[3] = Point(46, 230);
+    srcTri[0] = Point(220, 13);
+    srcTri[1] = Point(58, 2);
+    srcTri[2] = Point(243, 220);
+    srcTri[3] = Point(46, 230);
 
 
     Point2f dstTri[4];
     int minn = min(linesP.size(), linesIdeal.size());
     dstTri[0] = Point(linesIdeal[0][0], linesIdeal[0][1]);
     dstTri[1] = Point(linesIdeal[0][2], linesIdeal[0][3]);
-    dstTri[2] = Point(linesIdeal[minn - 1][0], linesIdeal[minn - 1][1]);
-    dstTri[3] = Point(linesIdeal[minn - 1][2], linesIdeal[minn - 1][3]);
 
+    float minRMSE=FLT_MAX;
     Mat imgFinal;
-    float minRMSE = FLT_MAX;
-    int mini = -1;
-    int minj = -1;
-//    for (int i = 0; i < linesP.size() - 1; i++) {
-//        srcTri[0] = Point(linesP[i][0], linesP[i][1]);
-//        srcTri[2] = Point(linesP[i][2], linesP[i][3]);
-//        if(srcTri[0].x ==220 && srcTri[0].y ==13 && srcTri[1].x == 58 && srcTri[1].y ==2 ){
-//            mini = i;
-//
-//        }
-//        for (int j = i + 1; j < linesP.size(); j++) {
-//            srcTri[3] = Point(linesP[j][0], linesP[j][1]);
-//            srcTri[1] = Point(linesP[j][2], linesP[j][3]);
-//
-//            if(srcTri[3].x ==243 && srcTri[3].y ==220 && srcTri[2].x == 46 && srcTri[2].y ==230 ){
-//                minj = j;
-//
-//            }
 
-    Point2f srcTri[4];
-    srcTri[0] = Point(linesP[0][0], linesP[0][1]);
-    srcTri[1] = Point(linesP[0][2], linesP[0][3]);
-    srcTri[2] = Point(linesP[linesP.size() - 1][0], linesP[linesP.size() - 1][1]);
-    srcTri[3] = Point(linesP[linesP.size() - 1][2], linesP[linesP.size() - 1][3]);
+    for (int i = 1; i < minn ; i++) {
+        dstTri[2] = Point(linesIdeal[i][0], linesIdeal[i][1]);
+        dstTri[3] = Point(linesIdeal[i][2], linesIdeal[i][3]);
 
-    Mat warp_dst2 = Mat::zeros(input.rows, input.cols, input.type());
-    Mat warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
-    warpPerspective(outputIdeal, warp_dst2, warp_mat2, warp_dst2.size());
+        Mat warp_dst2 = Mat::zeros(input.rows, input.cols, input.type());
+        Mat warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
+        warpPerspective(outputIdeal, warp_dst2, warp_mat2, warp_dst2.size());
 
-//    float score = rmse(output, warp_dst2);
-//
-//    char name[50];
-//    ::sprintf(name, "%s %d %d %f", "img", i, j, score);
-//            imshow(name, warp_dst2);
+        float score = rmse(output, warp_dst2);
 
-//            if ( score<minRMSE) {
-//                minRMSE = score;
-//                imgFinal = warp_dst2;
-//
-//            }
+        if (score < minRMSE) {
+            minRMSE = score;
+            imgFinal = warp_dst2;
+
+        }
 
 
-//        }
-//    }
+    }
 
-    char name[50];
-//    ::sprintf(name, "%s %f %d %d", "final", minRMSE, mini, minj);
-    imshow("final", warp_dst2);
 
-//    cout << endl << "aici " << mini << " " << minj << endl;
-
+    imshow("final", imgFinal);
 
     imshow("Input", input);
     imshow("out", output);

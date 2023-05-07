@@ -149,7 +149,7 @@ int main() {
     Mat input;
     Mat idealPhoto;
     input = imread("ransac/canny6.jpg", 1);
-    idealPhoto = imread("ransac/cannyR2.jpg", 1);
+    idealPhoto = imread("ransac/cannyR.jpg", 1);
 
     Mat output = Mat::zeros(input.rows, input.cols, CV_8UC1);
     Mat outputIdeal = Mat::zeros(idealPhoto.rows, idealPhoto.cols, CV_8UC1);
@@ -197,7 +197,6 @@ int main() {
     }
 
 //    matche(gray,grayIdeal);
-
 
 
     for (size_t i = 0; i < linesIdeal.size(); i++) {

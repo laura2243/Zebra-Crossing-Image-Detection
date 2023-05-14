@@ -180,8 +180,8 @@ giving us the favorable results
  - afterwards, in the source image, at the position where the white mask is located, we display the transformed ideal crossroad 
 
 ##### White Mask Output:
-...
+![mask.png](mask.jpg)
 
 ##### Final Output:
-...
-
+![input2.png](input2.jpg)
+![final.png](final.jpg)

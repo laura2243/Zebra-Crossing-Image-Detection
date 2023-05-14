@@ -34,11 +34,16 @@ For the Sigma value, we used a generic one **(1.4)** as there weren't many diffe
 ##### ***Choosing an optimal Threshold***
 - in order to choose the best value for the threshold we used a **Trackbar** 
 Usage examples:
-    1. **t < 35** => too much noise
+    1. ***t < 35*** => too much noise
+    
 ![canny1.png](canny1.png)
-    2.  **35 < t < 55**  => good results
+
+   2.  ***35 < t < 55***  => good results
+    
 ![canny2.png](canny2.png)
-    3.  **t > 60** => misses important information
+
+  3.  ***t > 60*** => misses important information
+    
 ![canny3.png](canny3.png)
     
 Considering this information we choose a threshold equal to **53**, an average value.
@@ -60,6 +65,7 @@ Considering this information we choose a threshold equal to **53**, an average v
 
 #### ***III. Root mean square error***
 - after computing the transformation matrix for every posibility, one way of finding the best match would be using Root mean square error as the difference between each to pixels 
+
 ![RMSE](https://www.askpython.com/wp-content/uploads/2020/10/RMSE.png.webp)
 
 ##### Output of the best transformation matrix  :
@@ -79,9 +85,11 @@ For the Ransac algorithm we used 2 approaches:
 - we traverse all the other points and we only keep the ones that are positioned at specific distance from the line, set by a **threshold = 1**
 > **Choosing the threshold**
 > 1.  threshold < 1 - removes too many lines (ex: 0.3)
+
 ![thrashSmall.png](thrashSmall.png) 
 > 2. threshold = 1 - good output
 > 3. threshold > 1 - adds lines that should't be there (ex: 1.5)
+
 ![thrashBig.png](thrashBig.png)
 
 For ransac we choose a number of 100.000 maximum iterations.
@@ -95,11 +103,13 @@ Also, we set a threshold of **100 for the number of inliners**.
 >1.  500 < inlines - no lines detected 
 >2.  inliners = 100 - good results
 >3.  inliners < 50 - too many lines that aren't part of the actual crossroad
+
 ![inliners.png](inliners.png)
 
 
  > Final output for distance heuristic:
  #### Final Output:
+ 
  ![distRansac.png](distRansac.png)
  
  #### **IV.II. Liniar Regression**
@@ -111,6 +121,7 @@ Also, we set a threshold of **100 for the number of inliners**.
  an approximation of it.
  ```
 Within this algorithm we computed the best fitting line in the form of y = ax + b, where a is the slope of the line and b is the constant term using this formula. The model tries to find the line of best fit during training using this formula:
+
 ![Database](https://media.geeksforgeeks.org/wp-content/uploads/20211021122245/ab-300x151.jpg)
 
 ```
@@ -118,6 +129,7 @@ During the development of this method we encountered a difficulty for horizontal
 algoritm being developed only for the other types of lines.
 ```
 #### Output without solution:
+
  ![liniarBefore.png](liniarBefore.png)
 
 **Solution:**
@@ -129,11 +141,13 @@ If horizontal (StandardDeviation == 0) , regress a line through **inverted Y and
 And instead of using **y = ax + b** formula we used  **x = ay + b**.
 
 #### Output with solution:
+
  ![liniarAfter.png](liniarAfter.png)
 
 
 
 #### Final Output:
+
  ![liniarReg.png](liniarReg.png)
 
 #### ***V. Finding the crossroad's projection with Houghlines.***
@@ -144,8 +158,9 @@ And instead of using **y = ax + b** formula we used  **x = ay + b**.
 >Disadvantage: the crossroad's corners are hardcoded.
 
 ####  Output:
+
 ![input.png](input.png)
-![cornersHardcoded.png](cornersHardcoded.png) 
+![cornersHardcoded.png](cornersHardCoded.png) 
 
 
 **V.II. Sorting the lines**
@@ -158,6 +173,7 @@ giving us the favorable results
 
 
 ####  Output:
+
 ![sort.png](sort.png)
 
 
@@ -169,9 +185,11 @@ giving us the favorable results
  - the vanishing point is approximately the point of intersection of these lines
  
 ##### Output before applying Vanishing Point Detection:
+
 ![vanish1.png](vanish1.jpg)
 
 ##### Output after applying Vanishing Point Detection:
+
 ![vanish2.png](vanish2.jpg)
 
  #### ***VII.Displaying the projection/bounding box in the original image.***
@@ -180,6 +198,7 @@ giving us the favorable results
  - afterwards, in the source image, at the position where the white mask is located, we display the transformed ideal crossroad 
 
 ##### White Mask Output:
+
 ![mask.png](mask.jpg)
 
 ##### Final Output:

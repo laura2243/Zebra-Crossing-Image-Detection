@@ -284,31 +284,35 @@ int main() {
 
     Point2f dstTri[4];
     int minn = min(linesP.size(), linesIdeal.size());
-    dstTri[0] = Point(linesIdeal[0][0], linesIdeal[0][1]);
-    dstTri[1] = Point(linesIdeal[0][2], linesIdeal[0][3]);
+    dstTri[0] = Point(0, idealPhoto.rows);
+    dstTri[1] = Point(0, 0);
 
     float minRMSE = FLT_MAX;
     Mat imgFinal;
 
     Mat warp_mat2;
+    Mat warp_mat2BEST;
     Mat warp_dst2 = Mat::zeros(input.rows, input.cols, input.type());
 
 
-    for (int i = 1; i < minn; i++) {
+    for (int i = 0; i < linesIdeal.size(); i++) {
         dstTri[2] = Point(linesIdeal[i][0], linesIdeal[i][1]);
         dstTri[3] = Point(linesIdeal[i][2], linesIdeal[i][3]);
-
+        Mat tst = idealPhoto(Range(0,idealPhoto.rows),Range(0,linesIdeal[i][2]));
+        tst = Canny(tst);
         warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
-        warpPerspective(idealPhoto, warp_dst2, warp_mat2, warp_dst2.size());
+        warpPerspective(tst, warp_dst2, warp_mat2, warp_dst2.size());
+        Mat dst;
+        bitwise_and(warp_dst2,output,dst);
 
         float score = rmse(output, warp_dst2);
+        cout<<score<<endl;
 
         if (score < minRMSE) {
             minRMSE = score;
-            imgFinal = warp_dst2;
-
+            warp_dst2.copyTo(imgFinal);
+            warp_mat2.copyTo(warp_mat2BEST);
         }
-
 
     }
 
@@ -318,10 +322,8 @@ int main() {
     Mat final(input.rows, input.cols, input.type(), Scalar(255, 0, 0));
 
 
-    imshow("final2", newImage);
     warpPerspective(newImage, mt, warp_mat2, mt.size());
 
-    int x = 0;
     for (int i = 0; i < final.rows; i++) {
         for (int j = 0; j < final.cols*3; j++) {
             if (mt.at<uchar>(i, j) == 0)
@@ -337,7 +339,7 @@ int main() {
 
 //    imshow("final", imgFinal);
 //
-//    imshow("Input", input);
+    imshow("Input", input);
 //    imshow("out", output);
 //    imshow("outIdeal", outputIdeal);
 //    imshow("Output", canny);

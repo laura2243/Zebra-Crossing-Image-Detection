@@ -64,7 +64,7 @@ void matche(Mat gray, Mat grayIdeal) {
     // Match the keypoints between the two images
 
     Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-    std::vector<std::vector<DMatch> > matches;
+    std::vector<std::vector<DMatch>> matches;
     matcher->knnMatch(descriptors_src, descriptors_tgt, matches, 2);
 
 //    vector<vector<DMatch>> matches;
@@ -150,6 +150,8 @@ int main() {
     Mat idealPhoto;
     input = imread("ransac/canny6.jpg", 1);
     idealPhoto = imread("ransac/cannyR.jpg", 1);
+
+//    test(input);
 
     Mat output = Mat::zeros(input.rows, input.cols, CV_8UC1);
     Mat outputIdeal = Mat::zeros(idealPhoto.rows, idealPhoto.cols, CV_8UC1);
@@ -285,16 +287,19 @@ int main() {
     dstTri[0] = Point(linesIdeal[0][0], linesIdeal[0][1]);
     dstTri[1] = Point(linesIdeal[0][2], linesIdeal[0][3]);
 
-    float minRMSE=FLT_MAX;
+    float minRMSE = FLT_MAX;
     Mat imgFinal;
 
-    for (int i = 1; i < minn ; i++) {
+    Mat warp_mat2;
+    Mat warp_dst2 = Mat::zeros(input.rows, input.cols, input.type());
+
+
+    for (int i = 1; i < minn; i++) {
         dstTri[2] = Point(linesIdeal[i][0], linesIdeal[i][1]);
         dstTri[3] = Point(linesIdeal[i][2], linesIdeal[i][3]);
 
-        Mat warp_dst2 = Mat::zeros(input.rows, input.cols, input.type());
-        Mat warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
-        warpPerspective(outputIdeal, warp_dst2, warp_mat2, warp_dst2.size());
+        warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
+        warpPerspective(idealPhoto, warp_dst2, warp_mat2, warp_dst2.size());
 
         float score = rmse(output, warp_dst2);
 
@@ -308,13 +313,35 @@ int main() {
     }
 
 
-    imshow("final", imgFinal);
+    Mat newImage(idealPhoto.rows, idealPhoto.cols, idealPhoto.type(), Scalar(255, 255, 255));
+    Mat mt = Mat::zeros(input.rows, input.cols, input.type());
+    Mat final(input.rows, input.cols, input.type(), Scalar(255, 0, 0));
 
-    imshow("Input", input);
-    imshow("out", output);
-    imshow("outIdeal", outputIdeal);
-    imshow("Output", canny);
-    moveWindow("Output", 300, 200);
+
+    imshow("final2", newImage);
+    warpPerspective(newImage, mt, warp_mat2, mt.size());
+
+    int x = 0;
+    for (int i = 0; i < final.rows; i++) {
+        for (int j = 0; j < final.cols*3; j++) {
+            if (mt.at<uchar>(i, j) == 0)
+                final.at<uchar>(i,j) = input.at<uchar>(i, j);
+            else
+                final.at<uchar>(i, j) = imgFinal.at<uchar>(i, j);
+
+        }
+    }
+
+    imshow("ffinal", final);
+
+
+//    imshow("final", imgFinal);
+//
+//    imshow("Input", input);
+//    imshow("out", output);
+//    imshow("outIdeal", outputIdeal);
+//    imshow("Output", canny);
+//    moveWindow("Output", 300, 200);
     waitKey(0);
 
     return 0;

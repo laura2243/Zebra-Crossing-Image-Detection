@@ -10,122 +10,13 @@
 #include <time.h>
 #include <vector>
 
-#include "opencv2/features2d.hpp"
-
-using namespace cv;
 using namespace std;
-
+using namespace cv;
 
 bool inside(Mat img, int x, int y) {
     if (x >= 0 && x < img.rows && y >= 0 && y < img.cols)
         return true;
     return false;
-}
-
-
-Mat Canny(Mat src) {
-    Mat dst;
-    Mat gauss, small_img;
-//        int down_width = src.cols - 0.9 * src.cols;
-//        int down_height = src.rows - 0.9 * src.rows;
-//        Mat resized_down;
-    //resize down
-    //resize(src, resized_down, Size(down_width, down_height), INTER_LINEAR);
-
-    double k = 0.4;
-    int pH = 50;
-    int pL = (int) k * pH;
-    GaussianBlur(src,
-                 gauss,
-                 Size(5, 5),
-                 1.4,
-                 1.4);
-
-    Canny(gauss, dst, 100, 53, 3);
-
-    return dst;
-
-}
-
-
-void matche(Mat gray, Mat grayIdeal) {
-    // Create a SIFT object
-    Ptr<SIFT> sift = SIFT::create();
-
-    // Detect keypoints and extract feature descriptors
-    vector<KeyPoint> keypoints_src, keypoints_tgt;
-    Mat descriptors_src, descriptors_tgt;
-    sift->detectAndCompute(gray, noArray(), keypoints_src, descriptors_src);
-    sift->detectAndCompute(grayIdeal, noArray(), keypoints_tgt, descriptors_tgt);
-
-    // Create a brute force matcher
-    BFMatcher bf(NORM_L2, true);
-
-    // Match the keypoints between the two images
-
-    Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
-    std::vector<std::vector<DMatch>> matches;
-    matcher->knnMatch(descriptors_src, descriptors_tgt, matches, 2);
-
-//    vector<vector<DMatch>> matches;
-//    bf.knnMatch(descriptors_src, descriptors_tgt, matches, 2);
-
-    // Apply ratio test to filter out poor matches
-    vector<DMatch> good_matches;
-    for (size_t i = 0; i < matches.size(); i++) {
-        if (matches[i][0].distance < 1 * matches[i][1].distance) {
-            good_matches.push_back(matches[i][0]);
-        }
-    }
-
-    // Draw the matched keypoints
-    Mat img_matches;
-    drawMatches(gray, keypoints_src, grayIdeal, keypoints_tgt, good_matches, img_matches, Scalar::all(-1),
-                Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-
-    // Set RANSAC parameters
-    double ransac_reproj_threshold = 4.0;
-    int ransac_max_iters = 2000;
-
-    // Convert the keypoints to numpy arrays
-    vector<Point2f> src_pts, tgt_pts;
-    for (size_t i = 0; i < good_matches.size(); i++) {
-        src_pts.push_back(keypoints_src[good_matches[i].queryIdx].pt);
-        tgt_pts.push_back(keypoints_tgt[good_matches[i].trainIdx].pt);
-    }
-
-    // Estimate the homography using RANSAC
-    Mat homography;
-    vector<char> inliers;
-    homography = findHomography(src_pts, tgt_pts, RANSAC, ransac_reproj_threshold, inliers, ransac_max_iters);
-
-    // Draw the inlier matches
-    Mat img_inliers;
-    drawMatches(gray, keypoints_src, grayIdeal, keypoints_tgt, good_matches, img_inliers, Scalar::all(-1),
-                Scalar::all(-1), inliers, DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-
-    // Warp the source image using the homography
-    Mat img_warped;
-    warpPerspective(gray, img_warped, homography, grayIdeal.size());
-
-    // Create a mask for the projected image
-    Mat mask = Mat::zeros(grayIdeal.size(), CV_8UC1);
-
-    // Draw the projected image onto the mask
-    vector<Point> pts;
-    for (size_t i = 0; i < keypoints_tgt.size(); i++) {
-        pts.push_back(keypoints_tgt[i].pt);
-    }
-    fillConvexPoly(mask, pts, Scalar(255));
-
-    // Apply the mask to the projected image
-    Mat img_result;
-    img_warped.copyTo(img_result, mask);
-
-    // Display the results
-    imshow("Matches", img_matches);
-    imshow("Inliers", img_inliers);
-    imshow("Projected Image", img_result);
 }
 
 
@@ -144,22 +35,103 @@ float rmse(Mat src, Mat dst) {
     return sqrt(mean);
 }
 
+Mat Canny(Mat src) {
+    Mat dst;
+    Mat gauss, small_img;
+    //        int down_width = src.cols - 0.9 * src.cols;
+    //        int down_height = src.rows - 0.9 * src.rows;
+    //        Mat resized_down;
+    //resize down
+    //resize(src, resized_down, Size(down_width, down_height), INTER_LINEAR);
+
+    double k = 0.4;
+    int pH = 50;
+    int pL = (int)k * pH;
+    GaussianBlur(src,
+                 gauss,
+                 Size(5, 5),
+                 1.4,
+                 1.4);
+
+    Canny(gauss, dst, 100, 53, 3);
+
+    return dst;
+
+}
+
+bool intersection(Point2f o1, Point2f p1, Point2f o2, Point2f p2,
+                  Point2f& r) {
+    Point2f x = o2 - o1;
+    Point2f d1 = p1 - o1;
+    Point2f d2 = p2 - o2;
+
+    float cross = d1.x * d2.y - d1.y * d2.x;
+    if (abs(cross) < 1e-8)
+        return false;
+
+    double t1 = (x.x * d2.y - x.y * d2.x) / cross;
+    r = o1 + d1 * t1;
+    return true;
+}
+
+
+bool isInCircle(Point p1, Point p2, double r) {
+
+    double d = sqrt(pow((p1.x - p2.x), 2) + pow((p1.y - p2.y), 2));
+    return d < r;
+
+}
+
+bool angle(vector<Point2f> points) {
+    double slope = (points[1].x - points[0].x) / (points[1].y - points[0].y);
+
+    double ang = atan(slope);
+
+    return ang;
+}
+
+vector<pair<Point2f, int>> calculScore(vector<Point2f> points, int r) {
+    int cnt;
+    int cntMax = 0;
+    vector<pair<Point2f, int>> maxP;
+    vector<pair<Point2f, int>> maxPinside;
+    for (int i = 0; i < points.size(); i++) {
+        maxPinside.clear();
+        cnt = 0;
+        for (int j = 0; j < points.size(); j++) {
+            if (isInCircle(points[i], points[j], r)) {
+                cnt++;
+                pair<Point2f, int> p;
+                p.first = points[j];
+                p.second = j;
+                maxPinside.push_back(p);
+            }
+        }
+
+        if (cnt > cntMax) {
+            for (int k = 0; k < maxPinside.size(); k++) {
+                maxP.push_back(maxPinside[k]);
+            }
+
+            cntMax = cnt;
+        }
+
+    }
+    return maxP;
+}
+
 
 int main() {
     Mat input;
     Mat idealPhoto;
-    input = imread("ransac/canny6.jpg", 1);
+    input = imread("ransac/canny1.jpg", 1);
     idealPhoto = imread("ransac/cannyR.jpg", 1);
-
-//    test(input);
-
     Mat output = Mat::zeros(input.rows, input.cols, CV_8UC1);
-    Mat outputIdeal = Mat::zeros(idealPhoto.rows, idealPhoto.cols, CV_8UC1);
 
     if (input.data == nullptr) {
         cerr << "Failed to load image" << endl;
     }
-    Mat gray;
+    Mat gray = Mat::zeros(input.rows, input.cols, CV_8UC1);
     Mat grayIdeal;
 
     cvtColor(input, gray, COLOR_BGR2GRAY);
@@ -170,116 +142,97 @@ int main() {
 
     vector<Vec4i> linesP; // will hold the results of the detection
     vector<Vec4i> linesIdeal;
-    HoughLinesP(canny, linesP, 0.5, CV_PI / 180, 40, 50, 20); // runs the actual detection
+    HoughLinesP(canny, linesP, 0.5, CV_PI / 180, 40, 50, 10); // runs the actual detection
     HoughLinesP(cannyIdeal, linesIdeal, 0.5, CV_PI / 180, 40, 50, 20);
 
+    Mat m = Mat::zeros(input.rows, input.cols, input.type());
+    //Draw the lines
+    for (size_t i = 0; i < linesP.size(); i++) {
+        Vec4i l = linesP[i];
+        line(m, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 1);
+    }
+    imshow("Before vanishing point", m);
 
-    // crescator dupa y
-    std::sort(linesP.begin(), linesP.end(),
-              [](const cv::Vec4i &a, const cv::Vec4i &b) {
-                  return a[1] > b[1];
-              });
+    vector<Point2f> intersections;
+    vector<Vec4i> linesAfterIntersection;
+    vector<Vec4i> linesIntersection;
+    vector<Vec4i> paralel;
+    for (size_t i = 0; i < linesP.size() - 1; i++) {
+        Vec4i li = linesP[i];
+        for (size_t j = i + 1; j < linesP.size(); j++) {
+            Vec4i lj = linesP[j];
 
+            Point2f inter;
 
-    //crescator dupa x
-    std::sort(linesIdeal.begin(), linesIdeal.end(),
-              [](const cv::Vec4i &a, const cv::Vec4i &b) {
-                  return a[0] < b[0];
-              });
+            if (intersection(Point(li[0], li[1]), Point(li[2], li[3]), Point(lj[0], lj[1]), Point(lj[2], lj[3]),
+                             inter)) {
+                intersections.push_back(inter);
 
-    // Draw the lines
+                linesIntersection.push_back(li);
+                linesIntersection.push_back(lj);
+
+            }
+            else {
+                paralel.push_back(li);
+                paralel.push_back(lj);
+            }
+
+        }
+    }
+
     for (size_t i = 0; i < linesP.size(); i++) {
         Vec4i l = linesP[i];
         line(output, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 2);
     }
 
-    for (size_t i = 0; i < linesIdeal.size(); i++) {
-        Vec4i l = linesIdeal[i];
-        line(outputIdeal, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 2);
+    vector<pair<Point2f, int>> finalPoints;
+    finalPoints = calculScore(intersections, 100);
+
+    vector<Vec4i> goodlines;
+
+    Mat f = Mat::zeros(input.rows, input.cols, CV_8UC1);
+    for (int i = 0; i < finalPoints.size(); i++) {
+        Vec4i l = linesIntersection[2 * finalPoints[i].second];
+        line(f, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 1);
+        if (std::find(goodlines.begin(), goodlines.end(), l) == goodlines.end())
+            goodlines.push_back(l);
+        l = linesIntersection[2 * finalPoints[i].second + 1];
+        line(f, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 1);
+        if (std::find(goodlines.begin(), goodlines.end(), l) == goodlines.end())
+            goodlines.push_back(l);
+
+    }
+    for (int i = 0; i < paralel.size(); i++) {
+        Vec4i l = paralel[i];
+        line(f, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 1);
+        if (std::find(goodlines.begin(), goodlines.end(), l) == goodlines.end())
+            goodlines.push_back(l);
     }
 
-//    matche(gray,grayIdeal);
+    imshow("lines", f);
 
-
-    for (size_t i = 0; i < linesIdeal.size(); i++) {
-        Vec4i l = linesIdeal[i];
-        std::cout << "Point1: ";
-        std::cout << l[0] << " " << l[1] << std::endl;
-        std::cout << "Point2: ";
-        std::cout << l[2] << " " << l[3] << std::endl;
+    vector<Point2f> ang;
+    ang.push_back(Point2f(goodlines[0][0], goodlines[0][1]));
+    ang.push_back(Point2f(goodlines[0][2], goodlines[0][3]));
+    if (angle(ang) < 45) {
+        std::sort(goodlines.begin(), goodlines.end(),
+                  [](const cv::Vec4i& a, const cv::Vec4i& b) {
+                      return a[1] < b[1];
+                  });
     }
-
-    std::cout << endl << "Imagine urata" << endl << endl;
-    for (size_t i = 0; i < linesP.size(); i++) {
-        Vec4i l = linesP[i];
-        std::cout << "Point1: ";
-        std::cout << l[0] << " " << l[1] << std::endl;
-        std::cout << "Point2: ";
-        std::cout << l[2] << " " << l[3] << std::endl;
+    else {
+        std::sort(goodlines.begin(), goodlines.end(),
+                  [](const cv::Vec4i& a, const cv::Vec4i& b) {
+                      return a[0] < b[0];
+                  });
     }
-
-    int minx = linesP[0][0];
-    int maxx = linesP[0][0];
-    int miny = linesP[0][1];
-    int maxy = linesP[0][1];
-
-    for (int i = 0; i < linesP.size(); i++) {
-        for (int j = 0; j < 4; j++) {
-            if (j % 2 == 0) { //x
-                if (linesP[i][j] < minx) {
-                    minx = linesP[i][j];
-                }
-                if (linesP[i][j] > maxx) {
-                    maxx = linesP[i][j];
-                }
-            } else {
-                if (linesP[i][j] < miny) {
-                    miny = linesP[i][j];
-                }
-                if (linesP[i][j] > maxy) {
-                    maxy = linesP[i][j];
-                }
-            }
-        }
-    }
-
-
-    int minxI = linesIdeal[0][0];
-    int maxxI = linesIdeal[0][0];
-    int minyI = linesIdeal[0][1];
-    int maxyI = linesIdeal[0][1];
-
-    for (int i = 0; i < linesIdeal.size(); i++) {
-        for (int j = 0; j < 4; j++) {
-            if (j % 2 == 0) { //x
-                if (linesIdeal[i][j] < minxI) {
-                    minxI = linesIdeal[i][j];
-                }
-                if (linesIdeal[i][j] > maxxI) {
-                    maxxI = linesIdeal[i][j];
-                }
-            } else {
-                if (linesIdeal[i][j] < minyI) {
-                    minyI = linesIdeal[i][j];
-                }
-                if (linesIdeal[i][j] > maxyI) {
-                    maxyI = linesIdeal[i][j];
-                }
-            }
-        }
-    }
-
 
     Point2f srcTri[4];
-//    srcTri[0] = Point(maxx, miny);
-//    srcTri[1] = Point(minx, miny);
-//    srcTri[2] = Point(maxx, maxy);
-//    srcTri[3] = Point(minx, maxy);
 
-    srcTri[0] = Point(220, 13);
-    srcTri[1] = Point(58, 2);
-    srcTri[2] = Point(243, 220);
-    srcTri[3] = Point(46, 230);
+    srcTri[0] = Point(goodlines[0][0]-100, goodlines[0][1]+50);
+    srcTri[1] = Point(goodlines[0][2], goodlines[0][3]);
+    srcTri[2] = Point(goodlines[goodlines.size()-1][0], goodlines[goodlines.size()-1][1]);
+    srcTri[3] = Point(goodlines[goodlines.size()-1][2]+100, goodlines[goodlines.size()-1][3]-50);
 
 
     Point2f dstTri[4];
@@ -298,15 +251,13 @@ int main() {
     for (int i = 0; i < linesIdeal.size(); i++) {
         dstTri[2] = Point(linesIdeal[i][0], linesIdeal[i][1]);
         dstTri[3] = Point(linesIdeal[i][2], linesIdeal[i][3]);
-        Mat tst = idealPhoto(Range(0,idealPhoto.rows),Range(0,linesIdeal[i][2]));
-        tst = Canny(tst);
+        Mat tst = idealPhoto(Range(0, idealPhoto.rows), Range(0, linesIdeal[i][2]));
         warp_mat2 = getPerspectiveTransform(dstTri, srcTri);
         warpPerspective(tst, warp_dst2, warp_mat2, warp_dst2.size());
         Mat dst;
-        bitwise_and(warp_dst2,output,dst);
 
         float score = rmse(output, warp_dst2);
-        cout<<score<<endl;
+        cout << score << endl;
 
         if (score < minRMSE) {
             minRMSE = score;
@@ -315,6 +266,8 @@ int main() {
         }
 
     }
+
+    imshow("njrbif", warp_dst2);
 
 
     Mat newImage(idealPhoto.rows, idealPhoto.cols, idealPhoto.type(), Scalar(255, 255, 255));
@@ -327,23 +280,62 @@ int main() {
     for (int i = 0; i < final.rows; i++) {
         for (int j = 0; j < final.cols*3; j++) {
             if (mt.at<uchar>(i, j) == 0)
-                final.at<uchar>(i,j) = input.at<uchar>(i, j);
+                final.at<uchar>(i, j) = input.at<uchar>(i, j);
             else
-                final.at<uchar>(i, j) = imgFinal.at<uchar>(i, j);
+                final.at<uchar>(i, j) = warp_dst2.at<uchar>(i, j);
 
         }
     }
 
-    imshow("ffinal", final);
+    imshow("mkdenide", mt);
+    imshow("cece", final);
 
 
-//    imshow("final", imgFinal);
-//
+
+    //int minx = linesIntersection[0][0];
+    //int maxx = linesIntersection[0][0];
+    //int miny = linesIntersection[0][1];
+    //int maxy = linesIntersection[0][1];
+
+    //for (int i = 0; i < linesIntersection.size(); i++) {
+    //    for (int j = 0; j < 4; j++) {
+    //        if (j % 2 == 0) { //x
+    //            if (linesIntersection[i][j] < minx) {
+    //                minx = linesIntersection[i][j];
+    //            }
+    //            if (linesIntersection[i][j] > maxx) {
+    //                maxx = linesIntersection[i][j];
+    //            }
+    //        }
+    //        else {
+    //            if (linesIntersection[i][j] < miny) {
+    //                miny = linesIntersection[i][j];
+    //            }
+    //            if (linesIntersection[i][j] > maxy) {
+    //                maxy = linesIntersection[i][j];
+    //            }
+    //        }
+    //    }
+    //}
+
+
+
+    //for (size_t i = 0; i < linesIntersection.size(); i++) {
+    //    Vec4i l = linesIntersection[i];
+    //    line(input, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 0, 255), 2);
+    //}
+
+    //// rectangle
+    //line(input, Point(minx, miny), Point(maxx, miny), Scalar(255, 0, 0), 2);
+    //line(input, Point(minx, maxy), Point(maxx, maxy), Scalar(255, 0, 0), 2);
+    //line(input, Point(minx, miny), Point(minx, maxy), Scalar(255, 0, 0), 2);
+    //line(input, Point(maxx, miny), Point(maxx, maxy), Scalar(255, 0, 0), 2);
+
+
+
     imshow("Input", input);
-//    imshow("out", output);
-//    imshow("outIdeal", outputIdeal);
-//    imshow("Output", canny);
-//    moveWindow("Output", 300, 200);
+    imshow("Output", canny);
+    moveWindow("Output", 300, 200);
     waitKey(0);
 
     return 0;

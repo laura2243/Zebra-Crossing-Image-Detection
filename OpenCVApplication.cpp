@@ -60,10 +60,63 @@ bool intersection(Point2f o1, Point2f p1, Point2f o2, Point2f p2,
 }
 
 
+bool isInCircle(Point p1, Point p2, double r) {
+
+    double d = sqrt(pow((p1.x - p2.x), 2) + pow((p1.y - p2.y), 2));
+    return d < r;
+
+}
+
+vector<pair<Point2f, int>> calculScore(vector<Point2f> points, int r) {
+    int cnt;
+    int cntMax = 0;
+    vector<pair<Point2f, int>> maxP;
+    vector<pair<Point2f, int>> maxPinside;
+    for (int i = 0; i < points.size(); i++) {
+        maxPinside.clear();
+        cnt = 0;
+        for (int j = 0; j < points.size(); j++) {
+            if (isInCircle(points[i], points[j], r)) {
+                cnt++;
+                pair<Point2f, int> p;
+                p.first = points[j];
+                p.second = j;
+                maxPinside.push_back(p);
+            }
+        }
+
+        if (cnt > cntMax) {
+            for (int k = 0; k < maxPinside.size(); k++) {
+                maxP.push_back(maxPinside[k]);
+            }
+
+            cntMax = cnt;
+        }
+
+    }
+    return maxP;
+}
+
+
+double angleBetweenLines(Point2f line1_start, Point2f line1_end, Point2f line2_start, Point2f line2_end) {
+   // slopes
+    double slope1 = (line1_end.y - line1_start.y) / (line1_end.x - line1_start.x);
+    double slope2 = (line2_end.y - line2_start.y) / (line2_end.x - line2_start.x);
+
+    // Calculate the dot product of the two lines
+    double dotProduct = slope1 * slope2 + 1e-10;
+
+    // Calculate the angle between the two lines
+    double angle = acos(dotProduct) * 180 / CV_PI;
+
+    return angle;
+}
+
+
 int main() {
     Mat input;
     Mat idealPhoto;
-    input = imread("ransac/canny3.jpg", 1);
+    input = imread("ransac/canny9.jpg", 1);
     idealPhoto = imread("ransac/cannyR.jpg", 1);
 
     if (input.data == nullptr) {
@@ -78,98 +131,84 @@ int main() {
     Mat canny = Canny(gray);
     Mat cannyIdeal = Canny(grayIdeal);
 
+
     vector<Vec4i> linesP; // will hold the results of the detection
     vector<Vec4i> linesIdeal;
     HoughLinesP(canny, linesP, 0.5, CV_PI / 180, 40, 50, 20); // runs the actual detection
     HoughLinesP(cannyIdeal, linesIdeal, 0.5, CV_PI / 180, 40, 50, 20);
 
-
-//     Draw the lines
-//    for (size_t i = 0; i < linesP.size(); i++) {
-//        Vec4i l = linesP[i];
-//        line(input, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 0, 255), 2);
-//    }
-
+    Mat m = Mat::zeros(input.rows, input.cols, input.type());
+    //Draw the lines
+    for (size_t i = 0; i < linesP.size(); i++) {
+        Vec4i l = linesP[i];
+        line(m, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 255), 1);
+    }
+    imshow("Before vanishing point", m);
 
     vector<Point2f> intersections;
     vector<Vec4i> linesAfterIntersection;
+    vector<Vec4i> linesIntersection;
+    vector<Vec4i> paralel;
     for (size_t i = 0; i < linesP.size() - 1; i++) {
         Vec4i li = linesP[i];
         for (size_t j = i + 1; j < linesP.size(); j++) {
             Vec4i lj = linesP[j];
 
-
             Point2f inter;
+
             if (intersection(Point(li[0], li[1]), Point(li[2], li[3]), Point(lj[0], lj[1]), Point(lj[2], lj[3]),
                              inter)) {
                 intersections.push_back(inter);
 
-//                if (inter.x > 1700 && inter.x < 2200) { //canny6 si 1
-                if (inter.y<0) {
+                linesIntersection.push_back(li);
+                linesIntersection.push_back(lj);
 
-                    if (linesAfterIntersection.empty()) {
-                        linesAfterIntersection.push_back(li);
-                        linesAfterIntersection.push_back(lj);
-                    } else {
-                        auto index1 = std::find(linesAfterIntersection.begin(), linesAfterIntersection.end(), li);
-                        if (index1 == linesAfterIntersection.end())
-                            linesAfterIntersection.push_back(li);
-
-                        auto index2 = std::find(linesAfterIntersection.begin(), linesAfterIntersection.end(), lj);
-                        if (index2 == linesAfterIntersection.end())
-                            linesAfterIntersection.push_back(lj);
-                    }
-                }
             } else {
-
-                if (linesAfterIntersection.empty()) {
-                    linesAfterIntersection.push_back(li);
-                    linesAfterIntersection.push_back(lj);
-                } else {
-                    auto index1 = std::find(linesAfterIntersection.begin(), linesAfterIntersection.end(), li);
-                    if (index1 == linesAfterIntersection.end())
-                        linesAfterIntersection.push_back(li);
-
-                    auto index2 = std::find(linesAfterIntersection.begin(), linesAfterIntersection.end(), lj);
-                    if (index2 == linesAfterIntersection.end())
-                        linesAfterIntersection.push_back(lj);
-                }
-
-
+                paralel.push_back(li);
+                paralel.push_back(lj);
             }
 
         }
     }
 
+    vector<pair<Point2f, int>> finalPoints;
+    finalPoints = calculScore(intersections, 100);
 
-    for (size_t i = 0; i < linesAfterIntersection.size(); i++) {
-        Vec4i l = linesAfterIntersection[i];
-        std::cout << "Point1: ";
-        std::cout << l[0] << " " << l[1] << std::endl;
-        std::cout << "Point2: ";
-        std::cout << l[2] << " " << l[3] << std::endl;
+    Mat f = Mat::zeros(input.rows, input.cols, CV_8UC1);
+    for (int i = 0; i < finalPoints.size(); i++) {
+        Vec4i l = linesIntersection[2 * finalPoints[i].second];
+        line(f, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 1);
+        l = linesIntersection[2 * finalPoints[i].second + 1];
+        line(f, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 1);
+
+    }
+    for (int i = 0; i < paralel.size(); i++) {
+        Vec4i l = paralel[i];
+        line(f, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 1);
     }
 
-    int minx = linesAfterIntersection[0][0];
-    int maxx = linesAfterIntersection[0][0];
-    int miny = linesAfterIntersection[0][1];
-    int maxy = linesAfterIntersection[0][1];
+    imshow("lines", f);
 
-    for (int i = 0; i < linesAfterIntersection.size(); i++) {
+    int minx = linesIntersection[0][0];
+    int maxx = linesIntersection[0][0];
+    int miny = linesIntersection[0][1];
+    int maxy = linesIntersection[0][1];
+
+    for (int i = 0; i < linesIntersection.size(); i++) {
         for (int j = 0; j < 4; j++) {
             if (j % 2 == 0) { //x
-                if (linesAfterIntersection[i][j] < minx) {
-                    minx = linesAfterIntersection[i][j];
+                if (linesIntersection[i][j] < minx) {
+                    minx = linesIntersection[i][j];
                 }
-                if (linesAfterIntersection[i][j] > maxx) {
-                    maxx = linesAfterIntersection[i][j];
+                if (linesIntersection[i][j] > maxx) {
+                    maxx = linesIntersection[i][j];
                 }
             } else {
-                if (linesAfterIntersection[i][j] < miny) {
-                    miny = linesAfterIntersection[i][j];
+                if (linesIntersection[i][j] < miny) {
+                    miny = linesIntersection[i][j];
                 }
-                if (linesAfterIntersection[i][j] > maxy) {
-                    maxy = linesAfterIntersection[i][j];
+                if (linesIntersection[i][j] > maxy) {
+                    maxy = linesIntersection[i][j];
                 }
             }
         }
@@ -177,30 +216,17 @@ int main() {
 
 
 
-//    Mat imgRectangle=zeros;
-
-    for (size_t i = 0; i < linesAfterIntersection.size(); i++) {
-        Vec4i l = linesAfterIntersection[i];
+    for (size_t i = 0; i < linesIntersection.size(); i++) {
+        Vec4i l = linesIntersection[i];
         line(input, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0, 0, 255), 2);
     }
 
+    // rectangle
     line(input, Point(minx, miny), Point(maxx, miny), Scalar(255, 0, 0), 2);
-//    imshow("line1", input);
     line(input, Point(minx, maxy), Point(maxx, maxy), Scalar(255, 0, 0), 2);
-//    imshow("line2", input);
     line(input, Point(minx, miny), Point(minx, maxy), Scalar(255, 0, 0), 2);
-//    imshow("line3", input);
     line(input, Point(maxx, miny), Point(maxx, maxy), Scalar(255, 0, 0), 2);
-//    imshow("line4", input);
 
-
-//    imshow("imgFinal", imgRectangle);
-
-    for (size_t i = 0; i < intersections.size(); i++) {
-        Point p = intersections[i];
-        std::cout << "Point: ";
-        std::cout << p.x << " " << p.y << std::endl;
-    }
 
 
     imshow("Input", input);

@@ -1,9 +1,13 @@
  # Documentation Zebra Crossing Image Detection 
 
 Main stages in the development of the project:
+
 1.Edge detection.
+
 2.Affine 3D transformation.
+
 3.Finding the crossroad's projection with RANSAC.
+
 4.Displaying the projection/bounding box in the original image.
 
 ### ***I.Edge detection***
